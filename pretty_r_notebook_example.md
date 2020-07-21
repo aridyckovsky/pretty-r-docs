@@ -12,13 +12,13 @@ from R files and projects. When we’re ready to publish this notebook,
 we’ll knit the document into a GitHub Markdown document, which will have
 the file name `pretty_r_notebook_example.md`. (Another Markdown trick:
 All of the code-formatting done in this paragraph uses enclosing
-backticks, such as `wow`.)
+backticks.)
 
 To start, we should use an R chunk that serves as the setup for knitting
 our notebook:
 
 The chunk is labeled as `setup` and we’ve added the option
-`indclude=FALSE`, which will hide this code chunk from the prettified
+`include=FALSE`, which will hide this code chunk from the prettified
 notebook output. The method inside this chunk,
 `knitr::opts_chunk$set()`, is the set of global options we want `knitr`
 to apply to every chunk in this notebook. For instance, we
@@ -26,9 +26,13 @@ to apply to every chunk in this notebook. For instance, we
 console warnings. While these warnings are great for development, we
 don’t want to muddy our presentation with them!
 
-Next, we’ll show a very simple example. First, we’ll assign a value to
-variable `x`, and then apply a binary operation to `x`. This chunk will
-be labeled `simple-example`
+Examples of knitting chunks
+---------------------------
+
+Now, we’ll start with a very simple example. First, we’ll assign a value
+to variable `x`, and then apply a binary operation to `x`. This chunk
+will be labeled `simple-example`. We’ll run the chunk, and later it will
+be included in the knitted output.
 
 ``` r
 x <- 2
