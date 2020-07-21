@@ -1,0 +1,34 @@
+---
+title: "Pretty R Notebook Example"
+author: "Ari Dyckovsky"
+output:
+  md_document:
+    variant: markdown_github
+---
+
+# Pretty R Notebook Example
+
+Make a pretty R notebook for sharing with [Markdown](https://www.markdownguide.org/) and the [`knitr`](https://yihui.org/knitr/) package. Markdown is a text formatting language that makes it very easy to format plain text documents, such as this one. For example, we use a single pound sign to format the above header: `# Pretty R Notebook Example`. The `knitr` package is a sleek library that generates presentation-ready documents from R files and projects. When we're ready to publish this notebook, we'll knit the document into a GitHub Markdown document, which will have the file name `pretty_r_notebook_example.md`. (Another Markdown trick: All of the code-formatting done in this paragraph uses enclosing backticks, such as ``wow``.)
+
+To start, we should use an R chunk that serves as the setup for knitting our notebook:
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,
+  strip.white = TRUE,
+  tidy = TRUE,
+  highlight = TRUE
+)
+```
+
+The chunk is labeled as `setup` and we've added the option `indclude=FALSE`, which will hide this code chunk from the prettified notebook output. The method inside this chunk, `knitr::opts_chunk$set()`, is the set of global options we want `knitr` to apply to every chunk in this notebook. For instance, we `warning = FALSE` makes sure that the end result does not include console warnings. While these warnings are great for development, we don't want to muddy our presentation with them!
+
+## Examples of knitting chunks
+
+Now, we'll start with a very simple example. First, we'll assign a value to variable `x`, and then apply a binary operation to `x`. This chunk will be labeled `simple-example`. We'll run the chunk, and later it will be included in the knitted output.
+
+```{r, simple-example}
+x <- 2
+
+x * 2
+```

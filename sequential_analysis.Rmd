@@ -1,0 +1,435 @@
+---
+title: "sequential_analysis_complete_02.28.2020"
+author: "Jonas Schöne"
+date: "28 February 2020"
+output: html_document
+---
+
+d: full dataset
+d_mem: subset of memory task
+deq: subset of sequential task
+dl: Long format dataset for analysis of hypothesis 1 (Main Effect)
+
+###Library/Cleaning the Environment/ggplot default settings/Getting the Data/Get the Data/Prepare Variables for Aggregation
+
+```{r}
+if(!require(Rmisc)) {install.packages("Rmisc"); require(Rmisc)}
+if(!require(tidyverse)) {install.packages("tidyverse"); require(tidyverse)}
+if(!require(lme4)) {install.packages("lme4"); require(lme4)}
+if(!require(car)) {install.packages("car"); require(car)}
+if(!require(jsonlite)) {install.packages("jsonlite"); require(jsonlite)}
+if(!require(lmerTest)) {install.packages("lmerTest"); require(lmerTest)}
+
+rm(list = ls()) #Cleaning the R Environment, since the datasets are pretty big and can slow down the PC 
+
+theme_set(theme_bw()) #simple black and white design
+
+#setwd("D:/Desktop/Oxford/amplification_project/analysis/sequential_study2_block/") #path to the json data files
+#setwd("D:/Desktop/Oxford/amplification_project/analysis/data_memory_blockwise/") #old unsuccessful memory task
+#path =  "data_old/" #pilot with to many single faces
+#path =  "data_old/test_trials" #for test trials
+
+
+d <- read.csv("data/sequential_study1_Jun2020_just_amplification_different_sequences.csv")
+
+#############################################################################################################
+################
+################                            CLEANING DATA/SUBSETTING                           ##############
+################
+#############################################################################################################
+
+# Subsetting the Trial Types
+#First subsetting the squential task
+
+
+d$estimation <- as.integer(d$estimation)
+test <- d %>% 
+  dplyr::group_by(participant_id) %>% 
+  dplyr::summarise(estimation_diff = mean(estimation_diff, na.rm=TRUE))
+
+
+Participant_Overview_Sequential <- d %>% 
+   dplyr::group_by(participant_id) %>% 
+   dplyr::summarise(estimation = mean(estimation, na.rm=TRUE), finished_trials = max(trial) , rt_seq = mean(rt)) %>% 
+  ungroup()
+
+ 
+exclusion_cases_seq <- Participant_Overview_Sequential %>% 
+   filter(estimation < 10 | estimation > 40)  
+
+d <- subset(d, !(participant_id %in% exclusion_cases_seq$participant_id))
+
+# Creating a long format to test general Amplification variable
+
+dl = d%>%
+  select( participant_id, trial, faceIdentity, fixationTime,estimation,face_mean, valence)%>%
+  gather(ratingType, ratingValue , -participant_id, -trial, -faceIdentity, - fixationTime, -valence)
+
+
+#rm (attention_check, df_total,exclusion_cases,exclusion_table, json_data)
+
+#Functions 
+lineGraph = function(data, outcome,group1,time,title, xtitle,ytitle){
+  dfc=summarySE(data, measurevar=outcome,
+                groupvars=c(group1,time), na.rm = T)
+  print(dfc)
+  dfc$high = dfc[,4]+dfc[,6]
+  dfc$low = dfc[,4]-dfc[,6]
+  pd <- position_dodge(0)
+  ggplot(dfc,aes_string(x=time, y=outcome ,fill = group1, colour =group1))+
+    geom_errorbar(aes(ymin=low, ymax=high), width=.1)+
+    geom_line( aes_string(linetype= group1, group=group1),size = .5)+
+    #facet_wrap(as.formula(paste("~", group1)),nrow=2)+
+    geom_point()+
+    theme_bw()+
+    theme(plot.title = element_text(hjust=0.5,size = rel(1.5)),
+          axis.title.y = element_text(face="bold",  size=14),
+          axis.text.x  = element_text( vjust=0.5, size=18),
+          axis.text.y  = element_text( vjust=0.5, size=12),
+          axis.title.x = element_text( vjust=0.5, size=18)) +
+    labs(title = title,
+          x = xtitle, 
+          y = ytitle)
+
+}
+
+
+length(unique(d$participant_id))
+
+```
+
+### Descriptives Sequence
+
+```{r}
+des = d %>%
+  group_by(participant_id, valence) %>%
+  summarize(meanDif = mean(estimation_diff),
+            sdDif = sd (estimation_diff)) ;des
+
+hist(d$estimation_diff, main = paste("Histogram of Estimation Difference"))
+mean(d$estimation_diff)
+
+hist(d$face_mean, main = paste("Histogram of actual Face Emotions"))
+hist(d$estimation, main = paste("Histogram of Estimations"))
+
+d$count <- 1
+
+
+```
+
+###Analysis Main Effect
+
+```{r}
+dl$ratingType = factor(dl$ratingType)
+
+meanCondition = dl %>%
+  group_by(ratingType) %>%
+  summarize(ratingValueM = mean (ratingValue, na.rm =T))
+
+dl$ratingType = relevel(dl$ratingType , "face_mean")
+
+r = lmer(ratingValue ~ ratingType  +(1|participant_id), dl);summary(r)
+
+dfc <- summarySE(dl, measurevar="ratingValue", groupvars=c("ratingType", "valence"), na.rm = T)
+
+g = ggplot(dfc,aes(x=as.factor(ratingType), y = ratingValue, fill = valence))+
+  geom_bar(position=position_dodge(), width = 0.5,stat="identity", colour="black" )+
+  geom_errorbar(aes(ymin=ratingValue-ci, ymax=ratingValue+ci), width=.1,position=position_dodge(.5))+
+  theme_bw()+
+  theme(plot.title = element_text(size = rel(1.4), hjust = 0.5,),
+        axis.title.y = element_text(face="bold",  size=14),
+        axis.text.x  = element_text( vjust=0.5, size=18),
+        axis.text.y  = element_text( vjust=0.5, size=12),
+        axis.title.x = element_blank()) +
+    scale_fill_grey()+
+    #facet_wrap(~id)+
+    #geom_hline(yintercept = 0.5,linetype="dashed", color = "red")+
+    labs(title = "", x = "",y = "difference(estimation-real)");g
+
+
+r = lmer(ratingValue ~ ratingType*valence +(1|participant_id)+(1|faceIdentity), dl);summary(r)
+
+dfc <- summarySE(dl, measurevar="ratingValue", groupvars=c("ratingType"), na.rm = T)
+
+g = ggplot(dfc,aes(x=as.factor(ratingType), y=ratingValue))+
+  geom_bar(position=position_dodge(), width = 0.5,stat="identity", colour="black" )+
+  geom_errorbar(aes(ymin=ratingValue-ci, ymax=ratingValue+ci), width=.1,position=position_dodge(.5))+
+  theme_bw()+
+  theme(plot.title = element_text(size = rel(1.4), hjust = 0.5,),
+        axis.title.y = element_text(face="bold",  size=14),
+        axis.text.x  = element_text( vjust=0.5, size=18),
+        axis.text.y  = element_text( vjust=0.5, size=12),
+        axis.title.x = element_blank()) +
+    scale_fill_grey()+
+    #facet_wrap(~id)+
+    #geom_hline(yintercept = 0.5,linetype="dashed", color = "red")+
+    labs(title = "", x = "",y = "difference(estimation-real)");g
+
+#################### Hypothesis 1: Main Effect * FixationTime
+
+r = lmer(ratingValue ~ ratingType*fixationTime +(1|participant_id)+(1|faceIdentity), dl);summary(r)
+```
+
+```{r}
+d$valence=relevel(d$valence, "positive")
+
+r = lmer (estimation_diff ~ valence+ scale(face_number) + (1|participant_id),d); summary(r)
+
+
+dfc <- summarySE(d, measurevar="estimation_diff", groupvars=c("valence","participant_id"), na.rm = T)
+
+g = ggplot(dfc,aes(x=as.factor(valence), y=estimation_diff))+
+  geom_bar(position=position_dodge(), width = 0.5,stat="identity", colour="black" )+
+  geom_errorbar(aes(ymin=estimation_diff-ci, ymax=estimation_diff+ci), width=.1,position=position_dodge(.5))+
+  theme_bw()+
+  theme(plot.title = element_text(size = rel(1.4), hjust = 0.5,),
+        axis.title.y = element_text(face="bold",  size=14),
+        axis.text.x  = element_text( vjust=0.5, size=18),
+        axis.text.y  = element_text( vjust=0.5, size=12),
+        axis.title.x = element_blank()) +
+    scale_fill_grey()+
+    facet_wrap(~participant_id)+
+    #geom_hline(yintercept = 0.5,linetype="dashed", color = "red")+
+    labs(title = "", x = "",y = "difference(estimation-real)");g
+```
+
+
+
+### Primacy and Recency Effect
+```{r}
+r = lmer (estimation_diff ~  first_face  + (1|participant_id), d); summary(r)
+
+ggplot(d, aes(x = last_face, y = estimation_diff, colour = valence), filter(d,face_number > 2))+ # recency effect visualisation
+  geom_smooth() 
+
+ggplot(d, aes(x = first_face, y = estimation_diff, colour = valence), filter(d,face_number > 2))+ # primacy effect visualisation
+  geom_smooth() 
+
+##### First Face Over Trials
+
+ff <- d %>% 
+  group_by(trial) %>%
+  do(ff_coeff=fixef(lmer(estimation_diff ~  first_face  + (1|faceIdentity), data=.))[[2]])
+
+ff$ff_coeff <- unlist(ff$ff_coeff)
+
+r = lmer (estimation_diff ~ trial * first_face  + (1|participant_id) + (1|faceIdentity), d); summary(r)
+
+ggplot(ff, aes(x = trial, y = ff_coeff))+ # primacy effect visualisation
+  geom_smooth() 
+
+### First Face Face Number
+
+ff <- d %>% 
+  group_by(face_number) %>%
+  do(ff_coeff=fixef(lmer(estimation_diff ~  first_face  + (1|faceIdentity), data=.))[[2]])
+
+ff$ff_coeff <- unlist(ff$ff_coeff)
+
+r = lmer (estimation_diff ~ first_face * face_number  + (1|participant_id) + (1|faceIdentity), d); summary(r)
+
+ggplot(ff, aes(x = face_number, y = ff_coeff))+ # primacy effect visualisation
+  geom_smooth() 
+```
+
+
+### Trial Development
+
+```{r}
+
+ggplot(d, aes(x = trial, y = estimation_diff, colour = valence))+
+  geom_smooth(method = lm) 
+
+lineGraph(d,"estimation_diff","valence","trial",title="Ratings Over Time","trial","ratings")
+
+```
+
+### Amits suggestions from email 04/03/2020
+
+```{r}
+
+# 1b.) Correlation between positive and negative amplification
+
+# by participant
+dtest = d %>%
+  group_by(participant_id, valence) %>%
+  summarize(meanDif = mean(estimation_diff),
+            sdDif = sd (estimation_diff)) %>% 
+  ungroup()
+
+dtest <- spread(dtest, valence, meanDif)
+
+dcor <- dtest %>% 
+  dplyr::group_by(participant_id) %>% 
+  dplyr::summarise(negative = last(na.omit(negative)), positive = last(na.omit(positive))) %>%
+  ungroup()
+
+
+cor.test (dcor$negative,dcor$positive)
+
+ggplot(dcor, aes(x = negative, y = positive))+ 
+  geom_point()+
+  geom_smooth(method = lm) 
+
+linearMod_participants <- lm(positive ~ negative, data=dcor)  # build linear regression model on full data
+summary(linearMod_participants)
+
+# by trial
+
+dtest = d %>%
+  group_by(trial, valence) %>%
+  summarize(meanDif = mean(estimation_diff),
+            sdDif = sd (estimation_diff)) %>% 
+  ungroup()
+
+dtest <- spread(dtest, valence, meanDif)
+
+dcor <- dtest %>% 
+  dplyr::group_by( trial) %>% 
+  dplyr::summarise(negative = last(na.omit(negative)), positive = last(na.omit(positive))) %>%
+  ungroup()
+
+ggplot(dcor, aes(x = negative, y = positive))+ 
+  geom_smooth(method = lm) 
+
+linearMod_trials <- lm(positive ~ negative, data=dcor)  # build linear regression model on full data
+summary(linearMod_trials)
+
+
+```
+
+
+
+
+### 2 hypothesis: Face Number
+
+```{r , amplification}
+
+## testing consistency of effect at different stages of experiment ## 
+
+# Add grouping variable !!!
+
+
+
+d %>%
+  group_by(valence)%>%
+  do(r=print(summary(lmer(estimation_diff ~ face_number +(1|participant_id),data=.))))
+
+r = lmer (estimation_diff ~ face_number * valence + (1|participant_id), filter(d,face_number >= 2)); summary(r)
+
+
+## Plotting Result
+
+coef=d %>%
+  group_by(valence) %>% 
+  do(r=print(summary(lmer(estimation_diff~ face_number+(1|participant_id) , data = .))))%>%
+  mutate(intercept = r$coefficients[1],
+         face_number = r$coefficients[2])
+
+ggplot(d, aes(x = face_number, y = estimation_diff, colour = valence)) +
+  geom_point(size=3) +
+  geom_abline(slope = coef$face_number[1], intercept = coef$intercept[1], colour ="red")+
+  geom_abline(slope = coef$face_number[2], intercept = coef$intercept[2], colour ="blue")
+
+ggplot(d, aes(x = face_number, y = estimation_diff, colour = valence))+ #Comparison of positive and negative emotion
+  geom_smooth(method = "lm") +
+  geom_hline(yintercept= 0, linetype="dashed", color = "red")+
+  scale_x_continuous(breaks = round(seq(min(d$face_number), max(d$estimation_diff), by = 1),1))
+
+```
+
+#### Order Analysis
+
+```{r}
+
+d_order <- read.csv("data/sequential_study1_Jun2020_just_amplification_different_sequences_NOT_AGGREGATED.csv")
+
+d_order <- subset(d_order, !(participant_id %in% exclusion_cases_seq$participant_id))
+
+r = lmer (estimation_diff ~ order_of_face * stimulus + (1|participant_id), d_order); summary(r)
+
+ggplot(d_order, aes(x = stimulus, y = estimation_diff), d_order)+ # , colour = valence
+  geom_smooth(se=F) +
+  facet_wrap( ~as.factor(order_of_face))
+
+d_order <- d_order %>% 
+  group_by(order_of_face) %>% 
+  do(print(summary(lmer (estimation_diff ~ stimulus + (1|participant_id), data=.))))
+
+dpl <- d_order %>% 
+  dplyr::group_by(order_of_face) %>% 
+  do(Slope=fixef(lmer(estimation_diff ~ stimulus + (1|participant_id) + (1|faceIdentity),data=.))[[2]]) %>% 
+  ungroup()
+
+dpl$Slope <- unlist(dpl$Slope)
+
+ggplot(dpl,aes(x=as.factor(order_of_face), y= Slope))+
+  geom_bar(position=position_dodge(), width = 0.5,stat="identity", colour="black" )+
+  theme_bw()+
+  scale_y_continuous(trans = "reverse")+
+  theme(plot.title = element_text(size = rel(1.4), hjust = 0.5,),
+        axis.title.y = element_text(face="bold",  size=14),
+        axis.text.x  = element_text( vjust=0.5, size=18),
+        axis.text.y  = element_text( vjust=0.5, size=12),
+        axis.title.x = element_blank()) +
+    scale_fill_grey()
+```
+
+
+
+
+#### Power Analysis
+
+```{r}
+library(simr)
+```
+
+
+### Amity Power Analysis with smaller subset
+
+```{r}
+#1. You take the trials of 8 from the first 50 - I can't imagine we have more than 2 in the first 25 and that's not enough (but you should do this anlysis as well).
+
+dl_test = d%>% #Filtering the 8 sequences and if needed the first 25 cases
+  filter(face_number == 8 & trial < 50) %>% 
+  select( participant_id, trial, faceIdentity, estimation,face_mean)%>%
+  gather(ratingType, ratingValue , -participant_id, -trial, -faceIdentity)
+
+dl_test$count <- 1 # to count how often people saw 8 faces
+
+test <- dl_test %>% # this is the table of how often people saw 8 faces
+  group_by(participant_id) %>% 
+  summarise(trialnumber = sum(count))
+
+#2. You calculate the effect.
+
+PowerModel = lmer(ratingValue ~ ratingType +(1|participant_id), dl_test);summary(PowerModel)
+
+powerSim(PowerModel, nsim=100)
+
+powerCurve(PowerModel, nsim = 10, within = "ratingType")
+
+#3. You extend it to trials to see how much you need.
+
+PowerModelExt = extend(PowerModel, within = "ratingType", n = 350)
+pc <-  powerCurve(PowerModelExt, nsim = 10, within = "ratingType") #80% at around 150 - 200 trials
+pc
+plot(pc)
+powerSim(PowerModelExt, nsim=100)
+
+
+# 4. You extend it to people to see how much you need. 
+
+PowerModelExtP = extend(PowerModelExt, along = "participant_id", n = 100)
+pc <-  powerCurve(PowerModelExtP, nsim = 10, along = "participant_id")
+powerSim(PowerModelExtP, nsim=100)
+pc
+plot(pc)
+
+PowerModelExt = extend(PowerModel, along = "participant_id", n = 100)
+pc <-  powerCurve(PowerModelExt, nsim = 10, along = "participant_id")
+powerSim(PowerModelExt, nsim=100)
+pc
+plot(pc)
+
+```
